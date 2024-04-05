@@ -16,13 +16,13 @@ interface FlightSearchDao {
     @Query("SELECT * FROM favorite")
     fun getAllFavorites(): Flow<List<Favorite>>
 
-    @Query("SELECT * FROM airport WHERE iata_code LIKE '%:searchQuery%' OR name LIKE '%:searchQuery%'")
+    @Query("SELECT * FROM airport WHERE iata_code LIKE '%:searchQuery%' OR name LIKE '%' || :searchQuery || '%'")
     fun getAirportBySearch(searchQuery: String): Flow<List<Airport>>
 
-    @Query("SELECT * FROM airport WHERE iata_code != ':iataCode'")
+    @Query("SELECT * FROM airport WHERE iata_code != :iataCode")
     fun getPossibleFlights(iataCode: String): Flow<List<Airport>>
 
-    @Query("SELECT * FROM airport WHERE iata_code = ':iataCode'")
+    @Query("SELECT * FROM airport WHERE iata_code = :iataCode")
     fun getAirportByCode(iataCode: String): Flow<Airport>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
