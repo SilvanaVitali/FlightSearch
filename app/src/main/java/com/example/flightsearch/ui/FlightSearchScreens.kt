@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -24,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,10 +38,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.flightsearch.R
+import com.example.flightsearch.data.Airport
 import com.example.flightsearch.ui.theme.FlightSearchTheme
 
 enum class FlightSearchScreens {
@@ -47,8 +52,11 @@ enum class FlightSearchScreens {
 }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FlightSearchApp() {
+fun FlightSearchApp(
+    viewModel: FlightSearchViewModel = viewModel(factory = FlightSearchViewModel.factory)
+) {
     val navController = rememberNavController()
+    val airports by viewModel.getAllAirports().collectAsState(emptyList())
     Scaffold(
         topBar = {
             TopAppBar(
@@ -82,6 +90,7 @@ fun FlightSearchApp() {
             ) {
                 composable(FlightSearchScreens.HomeFlight.name) {
                     HomeFlightSearchScreens(
+                        airports = airports,
                         modifier = Modifier
                             .padding(dimensionResource(R.dimen.padding_medium))
                             .fillMaxSize(),
@@ -106,6 +115,7 @@ fun FlightSearchApp() {
 
 @Composable
 private fun HomeFlightSearchScreens(
+    airports: List<Airport>,
     modifier: Modifier = Modifier,
     onAirportClick: ((String) -> Unit)
 ) {
@@ -113,8 +123,17 @@ private fun HomeFlightSearchScreens(
         modifier = modifier
     ) {
         //Sugerencias busqueda
-        AirportItem(code = "FCO", name = "Leonardo da Vinci International Airport", onAirportClick = onAirportClick)
-        AirportItem(code = "DUB", name = "Dublin Airport", onAirportClick = onAirportClick)
+        LazyColumn(
+            modifier = modifier
+        ) { items(
+            items = airports,
+            key = { airport -> airport.id}
+        ) { airport ->
+            AirportItem(code = airport.codeIATA, name = "Dublin Airport", onAirportClick = onAirportClick)
+        }
+        }
+//        AirportItem(code = "FCO", name = "Leonardo da Vinci International Airport", onAirportClick = onAirportClick)
+
         //Lista favoritos
         Text(
             text = "Favorite routes",
@@ -218,7 +237,7 @@ fun FlightDetailsPreview() {
 @Composable
 fun HomeFlightPreview() {
     FlightSearchTheme {
-        HomeFlightSearchScreens(onAirportClick = {})
+        HomeFlightSearchScreens(airports = emptyList(), onAirportClick = {})
     }
 }
 
