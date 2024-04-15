@@ -42,6 +42,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.flightsearch.AppViewModelProvider
 import com.example.flightsearch.R
 import com.example.flightsearch.data.Airport
 import com.example.flightsearch.ui.theme.FlightSearchTheme
@@ -53,7 +55,7 @@ enum class FlightSearchScreens {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FlightSearchApp(
-    viewModel: FlightSearchViewModel = viewModel(factory = FlightSearchViewModel.factory)
+    viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val navController = rememberNavController()
     val airports by viewModel.getAllAirports().collectAsState(emptyList())
