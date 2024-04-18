@@ -61,6 +61,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
+    //ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
+
     //Navigation
     implementation("androidx.navigation:navigation-compose:${rootProject.extra["nav_version"]}")
 

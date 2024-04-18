@@ -29,9 +29,12 @@ interface FlightSearchDao {
     @Query("SELECT * FROM favorite WHERE departure_code = :departureCode AND destination_code = :destinationCode")
     fun getFavorite(departureCode: String, destinationCode: String): Flow<Favorite>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertFavorite(favorite: Favorite)
 
     @Delete
     suspend fun deleteFavorite(favorite: Favorite)
+
+    @Query("DELETE FROM favorite WHERE departure_code = :departureCode AND destination_code = :destinationCode")
+    suspend fun deleteFavoriteByCode(departureCode: String, destinationCode: String)
 }

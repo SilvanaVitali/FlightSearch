@@ -18,4 +18,7 @@ class OfflineFlightSearchRepository(private val flightSearchDao: FlightSearchDao
     override suspend fun insertFavorite(favorite: Favorite) = flightSearchDao.insertFavorite(favorite)
 
     override suspend fun deleteFavorite(favorite: Favorite) = flightSearchDao.deleteFavorite(favorite)
+
+    override suspend fun deleteFavoriteByCode(departureCode: String, destinationCode: String) = flightSearchDao
+        .deleteFavoriteByCode(departureCode, destinationCode)
 }

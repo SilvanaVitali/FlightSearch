@@ -1,5 +1,6 @@
 package com.example.flightsearch.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -30,15 +32,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -47,6 +52,7 @@ import com.example.flightsearch.AppViewModelProvider
 import com.example.flightsearch.R
 import com.example.flightsearch.data.Airport
 import com.example.flightsearch.ui.theme.FlightSearchTheme
+import kotlinx.coroutines.flow.Flow
 
 enum class FlightSearchScreens {
     HomeFlight,
@@ -58,7 +64,7 @@ fun FlightSearchApp(
     viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val navController = rememberNavController()
-    val airports by viewModel.getAllAirports().collectAsState(emptyList())
+    val favoritesListUiState by viewModel.favoritesListUiState.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -73,17 +79,47 @@ fun FlightSearchApp(
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
+            var query by rememberSaveable { mutableStateOf("") }
+            var active by rememberSaveable { mutableStateOf(false) }
+            val airportsSearch by viewModel.getAirportBySearch(query).collectAsState(emptyList())
+            val updateFavorite = viewModel::updateFavorite
+            val onSearch: (String) -> Unit = { active = false }
             SearchBar(
-                query = "",
+                query = query,
                 placeholder = { Text(text = "Enter departure airport") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                onQueryChange = {},
-                onSearch = {},
-                active = false,
-                onActiveChange = {},
+                onQueryChange = { query = it },
+                onSearch = onSearch,
+                active = active,
+                onActiveChange = { active = it },
+                trailingIcon = {
+                    IconButton(
+                        onClick = { onSearch(query) },
+                        enabled = query.isNotEmpty()
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = null)
+                    }
+                },
                 modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium))
             ) {
-
+                if (query.isNotEmpty()) {
+                    val filteredAirports = airportsSearch
+                    LazyColumn {
+                        items(
+                            items = filteredAirports,
+                            key = { airport -> airport.id }
+                        ) { airport ->
+                            AirportItem(
+                                airport,
+                                modifier = Modifier
+                                    .clickable {
+                                        active = false
+                                        navController.navigate(
+                                            "${FlightSearchScreens.FlightList.name}/${airport.codeIATA}"
+                                        )
+                                    })
+                        }
+                    }
+                }
             }
 
             NavHost(
@@ -91,23 +127,39 @@ fun FlightSearchApp(
                 startDestination = FlightSearchScreens.HomeFlight.name
             ) {
                 composable(FlightSearchScreens.HomeFlight.name) {
+                    val airport = viewModel::getAirportByCode
                     HomeFlightSearchScreens(
-                        airports = airports,
+                        airport = airport,
+                        favoritesListUiState = favoritesListUiState.favoritesList,
+                        favoriteUiState = viewModel.favoriteUiState,
+                        updateFavorite = updateFavorite,
                         modifier = Modifier
                             .padding(dimensionResource(R.dimen.padding_medium))
-                            .fillMaxSize(),
-                        onAirportClick = { airportCode ->
-                            navController.navigate(
-                                "${FlightSearchScreens.FlightList.name}/code"
-                            )
-
-                        }
+                            .fillMaxSize()
                     )
                 }
+                val airportRouteArgument = "CODE"
                 composable(
-                    route = FlightSearchScreens.FlightList.name + "/code"
+                    route = FlightSearchScreens.FlightList.name + "/{$airportRouteArgument}",
+                    arguments = listOf(navArgument(airportRouteArgument) {
+                        type = NavType.StringType
+                    })
                 ) { backStackEntry ->
-                    FlightListScreen()
+                    val iataCode = backStackEntry.arguments?.getString(airportRouteArgument)
+                        ?: error("airportRouteArgument cannot be null")
+                    val departureAirport by viewModel.getAirportByCode(iataCode)
+                        .collectAsState(Airport(2, "DUB", "Dublin Airport", 130))
+                    val arrivalAirports by viewModel.getPossibleFlight(iataCode)
+                        .collectAsState(emptyList())
+
+                    FlightListScreen(
+                        departureAirport = departureAirport,
+                        arrivalAirports = arrivalAirports,
+                        favoritesListUiState = favoritesListUiState.favoritesList,
+                        favoriteUiState = viewModel.favoriteUiState,
+                        updateFavorite = updateFavorite,
+                        modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium))
+                    )
                 }
 
             }
@@ -117,58 +169,93 @@ fun FlightSearchApp(
 
 @Composable
 private fun HomeFlightSearchScreens(
-    airports: List<Airport>,
+    airport: (String) -> Flow<Airport>,
+    favoritesListUiState: List<FavoriteDetails>,
+    favoriteUiState: FavoriteUiState,
+    updateFavorite: (FavoriteDetails, Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    onAirportClick: ((String) -> Unit)
 ) {
     Column(
         modifier = modifier
     ) {
-        //Sugerencias busqueda
-        LazyColumn(
-            modifier = modifier
-        ) { items(
-            items = airports,
-            key = { airport -> airport.id}
-        ) { airport ->
-            AirportItem(code = airport.codeIATA, name = "Dublin Airport", onAirportClick = onAirportClick)
+        if (favoritesListUiState.isNotEmpty()) {
+            //Lista favoritos
+            Text(
+                text = stringResource(R.string.favorite_routes),
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium)))
+            LazyColumn(
+                modifier = Modifier
+            ) {
+                items(
+                    items = favoritesListUiState,
+                    key = { favorite -> favorite.id }
+                ) { favorite ->
+                    FlightDetails(
+                        departureAirport = airport(favorite.departureCode).collectAsState(
+                            Airport(0, "", "", 0)
+                        ).value,
+                        arrivalAirport = airport(favorite.destinationCode).collectAsState(
+                            Airport(0, "", "", 0)
+                        ).value,
+                        favoritesListUiState = favoritesListUiState,
+                        favoriteUiState = favoriteUiState.favoriteDetails,
+                        updateFavorite = updateFavorite,
+                        modifier = Modifier.padding(vertical = dimensionResource(R.dimen.padding_small)),
+                    )
+                }
+            }
         }
-        }
-//        AirportItem(code = "FCO", name = "Leonardo da Vinci International Airport", onAirportClick = onAirportClick)
-
-        //Lista favoritos
-        Text(
-            text = "Favorite routes",
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium)))
-        FlightDetails()
-        FlightDetails()
     }
 }
 
 @Composable
 private fun FlightListScreen(
-    modifier: Modifier = Modifier
+    departureAirport: Airport,
+    arrivalAirports: List<Airport>,
+    favoritesListUiState: List<FavoriteDetails>,
+    favoriteUiState: FavoriteUiState,
+    updateFavorite: (FavoriteDetails, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
     ) {
         Text(
-            text = "Flight from XXX",
+            text = stringResource(R.string.flight_from, departureAirport.codeIATA),
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium)))
-        FlightDetails()
-        FlightDetails()
-        FlightDetails()
+        LazyColumn(
+            modifier = Modifier
+        ) {
+            items(
+                items = arrivalAirports,
+                key = { arrivalAirport -> arrivalAirport.id }
+            ) { arrivalAirport ->
+                FlightDetails(
+                    departureAirport = departureAirport,
+                    arrivalAirport = arrivalAirport,
+                    favoritesListUiState = favoritesListUiState,
+                    favoriteUiState = favoriteUiState.favoriteDetails,
+                    updateFavorite = updateFavorite,
+                    modifier = Modifier.padding(vertical = dimensionResource(R.dimen.padding_small))
+                )
+            }
+        }
     }
-
 }
 
+@SuppressLint("CoroutineCreationDuringComposition")
 @Composable
 private fun FlightDetails(
-    modifier: Modifier = Modifier
+    departureAirport: Airport,
+    arrivalAirport: Airport,
+    favoritesListUiState: List<FavoriteDetails>,
+    favoriteUiState: FavoriteDetails,
+    updateFavorite: (FavoriteDetails, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Card(
         modifier = modifier,
@@ -181,24 +268,44 @@ private fun FlightDetails(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
-                modifier = Modifier
+                modifier = Modifier.weight(5f)
             ) {
                 Text(text = stringResource(R.string.depart))
-                AirportItem(code = "FCO", name = "Leonardo da Vinci International Airport")
+                AirportItem(departureAirport)
                 Spacer(Modifier.size(dimensionResource(R.dimen.padding_small)))
                 Text(text = stringResource(R.string.arrive))
-                AirportItem(code = "DUB", name = "Dublin Airport")
+                AirportItem(arrivalAirport)
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(0.3f))
             var isFavorite by remember { mutableStateOf(false) }
+
+            val favoriteDb = favoritesListUiState.filter {
+                it.departureCode.contains(departureAirport.codeIATA) && it.destinationCode.contains(
+                    arrivalAirport.codeIATA
+                )
+            }
+            isFavorite = favoriteDb.isNotEmpty()
+
             IconToggleButton(
                 checked = isFavorite,
-                onCheckedChange = { isFavorite = it }
+                onCheckedChange = {
+                    updateFavorite(
+                        favoriteUiState.copy(
+                            departureCode = departureAirport.codeIATA,
+                            destinationCode = arrivalAirport.codeIATA
+                        ),
+                        isFavorite
+                    )
+                    isFavorite = !isFavorite
+                }
             ) {
                 Icon(
+                    tint = if (isFavorite) Color(239, 184, 16) else Color.LightGray,
                     imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .weight(0.7f)
+                        .fillMaxSize()
                 )
             }
         }
@@ -206,22 +313,22 @@ private fun FlightDetails(
 }
 
 @Composable
-private fun AirportItem(code: String, name: String, onAirportClick: ((String) -> Unit)? = null) {
+private fun AirportItem(
+    airport: Airport,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .padding(vertical = dimensionResource(R.dimen.padding_extra_small))
-            .clickable(enabled = onAirportClick != null) {
-                onAirportClick?.invoke("CODE")
-            }
     ) {
         Text(
-            text = code,
+            text = airport.codeIATA,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.size(dimensionResource(R.dimen.padding_small)))
         Text(
-            text = name,
+            text = airport.name,
             style = MaterialTheme.typography.bodyMedium
         )
     }
@@ -231,7 +338,19 @@ private fun AirportItem(code: String, name: String, onAirportClick: ((String) ->
 @Composable
 fun FlightDetailsPreview() {
     FlightSearchTheme {
-        FlightDetails()
+        val viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory)
+        val departureAirport = Airport(1, "FCO", "Leonardo da Vinci International Airport", 13)
+        val arrivalAirport = Airport(2, "DUB", "Dublin Airport", 130)
+        val favoriteList = listOf(
+            FavoriteDetails(1, "FCO", "DUB"),
+            FavoriteDetails(2, "FCO", "AOA"))
+        FlightDetails(
+            departureAirport = departureAirport,
+            arrivalAirport = arrivalAirport,
+            favoritesListUiState = favoriteList,
+            favoriteUiState = favoriteList[0],
+            updateFavorite = viewModel::updateFavorite
+        )
     }
 }
 
@@ -239,7 +358,18 @@ fun FlightDetailsPreview() {
 @Composable
 fun HomeFlightPreview() {
     FlightSearchTheme {
-        HomeFlightSearchScreens(airports = emptyList(), onAirportClick = {})
+        val viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory)
+        val airport = viewModel::getAirportByCode
+        val favoriteList = listOf(
+            FavoriteDetails(1, "FCO", "DUB"),
+            FavoriteDetails(2, "FCO", "AOA"))
+
+        HomeFlightSearchScreens(
+            airport = airport,
+            favoritesListUiState = favoriteList,
+            favoriteUiState = FavoriteUiState(favoriteList[0]),
+            updateFavorite = viewModel::updateFavorite
+        )
     }
 }
 
@@ -247,7 +377,23 @@ fun HomeFlightPreview() {
 @Composable
 fun FlightListPreview() {
     FlightSearchTheme {
-        FlightListScreen()
+        val viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory)
+        val departureAirport = Airport(1, "FCO", "Leonardo da Vinci International Airport", 13)
+        val arrivalAirports = listOf(
+            Airport(2, "DUB", "Dublin Airport", 130),
+            Airport(3, "AOA", "Dublin Airport", 130)
+        )
+        val favoriteList = listOf(
+            FavoriteDetails(1, departureAirport.codeIATA, arrivalAirports[0].codeIATA),
+            FavoriteDetails(2, departureAirport.codeIATA, arrivalAirports[1].codeIATA))
+
+        FlightListScreen(
+            departureAirport = departureAirport,
+            arrivalAirports = arrivalAirports,
+            favoritesListUiState = favoriteList,
+            favoriteUiState = FavoriteUiState(favoriteList[0]),
+            updateFavorite =  viewModel::updateFavorite
+        )
     }
 }
 

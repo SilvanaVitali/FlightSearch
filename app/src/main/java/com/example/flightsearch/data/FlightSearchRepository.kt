@@ -18,4 +18,6 @@ interface FlightSearchRepository {
     suspend fun insertFavorite(favorite: Favorite)
 
     suspend fun deleteFavorite(favorite: Favorite)
+
+    suspend fun deleteFavoriteByCode(departureCode: String, destinationCode: String)
 }

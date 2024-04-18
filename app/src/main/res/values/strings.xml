@@ -2,4 +2,6 @@
     <string name="app_name">Flight Search</string>
     <string name="depart">DEPART</string>
     <string name="arrive">ARRIVE</string>
+    <string name="flight_from">Flight from %1$s</string>
+    <string name="favorite_routes">Favorite routes</string>
 </resources>
