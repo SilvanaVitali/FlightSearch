@@ -53,11 +53,13 @@ import com.example.flightsearch.R
 import com.example.flightsearch.data.Airport
 import com.example.flightsearch.ui.theme.FlightSearchTheme
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 enum class FlightSearchScreens {
     HomeFlight,
     FlightList
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FlightSearchApp(
@@ -334,11 +336,10 @@ private fun AirportItem(
     }
 }
 
-@Preview(showBackground = false)
+@Preview(showBackground = true)
 @Composable
 fun FlightDetailsPreview() {
     FlightSearchTheme {
-        val viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory)
         val departureAirport = Airport(1, "FCO", "Leonardo da Vinci International Airport", 13)
         val arrivalAirport = Airport(2, "DUB", "Dublin Airport", 130)
         val favoriteList = listOf(
@@ -349,7 +350,7 @@ fun FlightDetailsPreview() {
             arrivalAirport = arrivalAirport,
             favoritesListUiState = favoriteList,
             favoriteUiState = favoriteList[0],
-            updateFavorite = viewModel::updateFavorite
+            updateFavorite = { _, _ -> }
         )
     }
 }
@@ -358,17 +359,18 @@ fun FlightDetailsPreview() {
 @Composable
 fun HomeFlightPreview() {
     FlightSearchTheme {
-        val viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory)
-        val airport = viewModel::getAirportByCode
+        val airport: (String) -> Flow<Airport>  = { _ ->
+                flow { Airport(2, "FCO", "Dublin Airport", 130) }
+        }
         val favoriteList = listOf(
             FavoriteDetails(1, "FCO", "DUB"),
-            FavoriteDetails(2, "FCO", "AOA"))
+            FavoriteDetails(2, "DUB", "AOA"))
 
         HomeFlightSearchScreens(
             airport = airport,
             favoritesListUiState = favoriteList,
             favoriteUiState = FavoriteUiState(favoriteList[0]),
-            updateFavorite = viewModel::updateFavorite
+            updateFavorite = { _, _ -> }
         )
     }
 }
@@ -377,7 +379,6 @@ fun HomeFlightPreview() {
 @Composable
 fun FlightListPreview() {
     FlightSearchTheme {
-        val viewModel: FlightSearchViewModel = viewModel(factory = AppViewModelProvider.Factory)
         val departureAirport = Airport(1, "FCO", "Leonardo da Vinci International Airport", 13)
         val arrivalAirports = listOf(
             Airport(2, "DUB", "Dublin Airport", 130),
@@ -392,15 +393,7 @@ fun FlightListPreview() {
             arrivalAirports = arrivalAirports,
             favoritesListUiState = favoriteList,
             favoriteUiState = FavoriteUiState(favoriteList[0]),
-            updateFavorite =  viewModel::updateFavorite
+            updateFavorite = { _, _ -> }
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun FlightSearchAppPreview() {
-    FlightSearchTheme {
-        FlightSearchApp()
     }
 }
